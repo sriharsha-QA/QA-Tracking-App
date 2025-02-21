@@ -13,6 +13,16 @@ import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
 
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuthStore();
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 function App() {
   const { setUser } = useAuthStore();
 
@@ -33,7 +43,11 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="projects" element={<Projects />} />
