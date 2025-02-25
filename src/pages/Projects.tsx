@@ -1,62 +1,36 @@
 import React, { useState } from 'react';
 import { Plus, Search, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-  status: 'Active' | 'Completed' | 'On Hold';
-  progress: number;
-  team: string[];
-  startDate: string;
-}
-
-const mockProjects: Project[] = [
-  {
-    id: 1,
-    name: 'E-commerce Platform',
-    description: 'Building a modern e-commerce platform with React and Node.js',
-    status: 'Active',
-    progress: 75,
-    team: ['https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-           'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150'],
-    startDate: '2024-01-15'
-  },
-  {
-    id: 2,
-    name: 'Mobile App Development',
-    description: 'Native mobile application for iOS and Android',
-    status: 'Active',
-    progress: 45,
-    team: ['https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-           'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-           'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'],
-    startDate: '2024-02-01'
-  },
-  {
-    id: 3,
-    name: 'Analytics Dashboard',
-    description: 'Real-time analytics dashboard for business metrics',
-    status: 'Completed',
-    progress: 100,
-    team: ['https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150'],
-    startDate: '2024-01-01'
-  },
-  {
-    id: 4,
-    name: 'Customer Portal',
-    description: 'Self-service customer portal with support integration',
-    status: 'On Hold',
-    progress: 30,
-    team: ['https://images.unsplash.com/photo-1639149888905-fb39731f2e6c?w=150',
-           'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=150'],
-    startDate: '2024-02-15'
-  }
-];
+import { useProjectStore, Project } from '../store/projectStore';
+import { Modal } from '../components/Modal';
+import { ProjectForm } from '../components/forms/ProjectForm';
+import { Tooltip } from '../components/Tooltip';
 
 const Projects: React.FC = () => {
+  const { projects, addProject, updateProject, deleteProject } = useProjectStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleCreateProject = (projectData: Omit<Project, 'id'>) => {
+    addProject(projectData);
+    setIsModalOpen(false);
+  };
+
+  const handleUpdateProject = (projectData: Omit<Project, 'id'>) => {
+    if (selectedProject) {
+      updateProject({ ...projectData, id: selectedProject.id });
+      setSelectedProject(null);
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleDeleteProject = (id: number) => {
+    deleteProject(id);
+    setShowDeleteConfirm(false);
+    setSelectedProject(null);
+  };
 
   const getStatusColor = (status: Project['status']) => {
     switch (status) {
@@ -71,14 +45,27 @@ const Projects: React.FC = () => {
     }
   };
 
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    project.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Projects</h1>
-        <button className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+        <button
+          onClick={() => {
+            setSelectedProject(null);
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+          data-tooltip-id="create-project-tooltip"
+        >
           <Plus size={20} />
           New Project
         </button>
+        <Tooltip id="create-project-tooltip" content="Create a new project" />
       </div>
 
       <div className="relative">
@@ -93,7 +80,7 @@ const Projects: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockProjects.map((project) => (
+        {filteredProjects.map((project) => (
           <div key={project.id} className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-start">
               <h3 className="text-lg font-semibold text-gray-800">{project.name}</h3>
@@ -101,16 +88,32 @@ const Projects: React.FC = () => {
                 <button
                   onClick={() => setShowDropdown(showDropdown === project.id ? null : project.id)}
                   className="p-1 hover:bg-gray-100 rounded-full"
+                  data-tooltip-id={`project-actions-${project.id}`}
                 >
                   <MoreVertical size={20} className="text-gray-500" />
                 </button>
+                <Tooltip id={`project-actions-${project.id}`} content="Project actions" />
                 {showDropdown === project.id && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10">
-                    <button className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setIsModalOpen(true);
+                        setShowDropdown(null);
+                      }}
+                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
                       <Edit2 size={16} />
                       Edit Project
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-red-600 hover:bg-gray-100 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setShowDeleteConfirm(true);
+                        setShowDropdown(null);
+                      }}
+                      className="w-full px-4 py-2 text-left text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                    >
                       <Trash2 size={16} />
                       Delete Project
                     </button>
@@ -151,6 +154,58 @@ const Projects: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Create/Edit Project Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProject(null);
+        }}
+        title={selectedProject ? 'Edit Project' : 'Create New Project'}
+      >
+        <ProjectForm
+          project={selectedProject || undefined}
+          onSubmit={selectedProject ? handleUpdateProject : handleCreateProject}
+          onCancel={() => {
+            setIsModalOpen(false);
+            setSelectedProject(null);
+          }}
+        />
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setSelectedProject(null);
+        }}
+        title="Delete Project"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete this project? This action cannot be undone.
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setSelectedProject(null);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => selectedProject && handleDeleteProject(selectedProject.id)}
+              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

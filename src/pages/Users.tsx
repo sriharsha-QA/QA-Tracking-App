@@ -1,68 +1,38 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Mail, Phone, MapPin } from 'lucide-react';
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: 'Admin' | 'QA Engineer' | 'Developer' | 'Project Manager';
-  status: 'Active' | 'Inactive';
-  avatar: string;
-  phone?: string;
-  location?: string;
-  department?: string;
-}
-
-const mockUsers: User[] = [
-  {
-    id: 1,
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@example.com',
-    role: 'QA Engineer',
-    status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    phone: '+1 (555) 123-4567',
-    location: 'San Francisco, CA',
-    department: 'Quality Assurance'
-  },
-  {
-    id: 2,
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    role: 'Developer',
-    status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=150',
-    phone: '+1 (555) 234-5678',
-    location: 'New York, NY',
-    department: 'Engineering'
-  },
-  {
-    id: 3,
-    name: 'Emily Brown',
-    email: 'emily.brown@example.com',
-    role: 'Project Manager',
-    status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-    phone: '+1 (555) 345-6789',
-    location: 'Chicago, IL',
-    department: 'Project Management'
-  },
-  {
-    id: 4,
-    name: 'Michael Chen',
-    email: 'michael.chen@example.com',
-    role: 'Admin',
-    status: 'Inactive',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-    phone: '+1 (555) 456-7890',
-    location: 'Seattle, WA',
-    department: 'Administration'
-  }
-];
+import { Plus, Search, MoreVertical, Mail, Phone, MapPin, Edit2, Trash2 } from 'lucide-react';
+import { useUserStore, User } from '../store/userStore';
+import { Modal } from '../components/Modal';
+import { UserForm } from '../components/forms/UserForm';
+import { Tooltip } from '../components/Tooltip';
 
 const Users: React.FC = () => {
+  const { users, addUser, updateUser, deleteUser } = useUserStore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleCreateUser = (userData: Omit<User, 'id'>) => {
+    addUser(userData);
+    setIsModalOpen(false);
+  };
+
+  const handleUpdateUser = (userData: Omit<User, 'id'>) => {
+    if (selectedUser) {
+      updateUser({ ...userData, id: selectedUser.id });
+      setSelectedUser(null);
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleDeleteUser = (id: number) => {
+    deleteUser(id);
+    setShowDeleteConfirm(false);
+    setSelectedUser(null);
+  };
 
   const getStatusColor = (status: User['status']) => {
     switch (status) {
@@ -90,25 +60,63 @@ const Users: React.FC = () => {
     }
   };
 
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || user.role.toLowerCase().replace(' ', '-') === roleFilter;
+    const matchesStatus = statusFilter === 'all' || user.status.toLowerCase() === statusFilter;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Users</h1>
-        <button className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+        <button
+          onClick={() => {
+            setSelectedUser(null);
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+          data-tooltip-id="create-user-tooltip"
+        >
           <Plus size={20} />
           Add User
         </button>
+        <Tooltip id="create-user-tooltip" content="Create a new user" />
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-        <input
-          type="text"
-          placeholder="Search users..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      <div className="flex gap-4 flex-col md:flex-row">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Search users..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <select
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
+          <option value="all">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="qa-engineer">QA Engineer</option>
+          <option value="developer">Developer</option>
+          <option value="project-manager">Project Manager</option>
+        </select>
+        <select
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -125,7 +133,7 @@ const Users: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {mockUsers.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -167,16 +175,34 @@ const Users: React.FC = () => {
                       <button
                         onClick={() => setShowDropdown(showDropdown === user.id ? null : user.id)}
                         className="text-gray-400 hover:text-gray-600"
+                        data-tooltip-id={`user-actions-${user.id}`}
                       >
                         <MoreVertical size={20} />
                       </button>
+                      <Tooltip id={`user-actions-${user.id}`} content="User actions" />
                       {showDropdown === user.id && (
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-10">
-                          <button className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100">
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setIsModalOpen(true);
+                              setShowDropdown(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Edit2 size={16} />
                             Edit User
                           </button>
-                          <button className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100">
-                            Deactivate User
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowDeleteConfirm(true);
+                              setShowDropdown(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Trash2 size={16} />
+                            {user.status === 'Active' ? 'Deactivate User' : 'Delete User'}
                           </button>
                         </div>
                       )}
@@ -188,6 +214,60 @@ const Users: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Create/Edit User Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedUser(null);
+        }}
+        title={selectedUser ? 'Edit User' : 'Create New User'}
+      >
+        <UserForm
+          user={selectedUser || undefined}
+          onSubmit={selectedUser ? handleUpdateUser : handleCreateUser}
+          onCancel={() => {
+            setIsModalOpen(false);
+            setSelectedUser(null);
+          }}
+        />
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setSelectedUser(null);
+        }}
+        title={selectedUser?.status === 'Active' ? 'Deactivate User' : 'Delete User'}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            {selectedUser?.status === 'Active'
+              ? 'Are you sure you want to deactivate this user? They will no longer have access to the system.'
+              : 'Are you sure you want to delete this user? This action cannot be undone.'}
+          </p>
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setSelectedUser(null);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => selectedUser && handleDeleteUser(selectedUser.id)}
+              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+            >
+              {selectedUser?.status === 'Active' ? 'Deactivate' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

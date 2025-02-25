@@ -83,7 +83,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1614741118887-7a4ee193a5fa?auto=format&fit=crop&q=80')] bg-cover bg-center bg-no-repeat">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1606761568499-6d2451b23c66?auto=format&fit=crop&q=80')] bg-cover bg-center bg-no-repeat">
       <div className="max-w-md w-full mx-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-xl p-8">
         <div className="flex justify-center mb-8">
           <div className="bg-blue-500 p-3 rounded-full">
