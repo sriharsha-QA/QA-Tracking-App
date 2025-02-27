@@ -38,6 +38,9 @@ export const QACheckForm: React.FC<QACheckFormProps> = ({ check, onSubmit, onCan
     if (!formData.assignee.name.trim()) {
       newErrors.assignee = 'Assignee name is required';
     }
+    if (!formData.lastRun.trim()) {
+      newErrors.lastRun = 'Last run date is required';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -133,6 +136,19 @@ export const QACheckForm: React.FC<QACheckFormProps> = ({ check, onSubmit, onCan
           } shadow-sm p-2`}
         />
         {errors.assignee && <p className="mt-1 text-sm text-red-600">{errors.assignee}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Last Run</label>
+        <input
+          type="datetime-local"
+          value={formData.lastRun.replace(' ', 'T')}
+          onChange={(e) => setFormData({ ...formData, lastRun: e.target.value.replace('T', ' ') })}
+          className={`mt-1 block w-full rounded-md border ${
+            errors.lastRun ? 'border-red-500' : 'border-gray-300'
+          } shadow-sm p-2`}
+        />
+        {errors.lastRun && <p className="mt-1 text-sm text-red-600">{errors.lastRun}</p>}
       </div>
 
       <div className="flex justify-end space-x-3 mt-6">

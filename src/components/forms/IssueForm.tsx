@@ -40,6 +40,12 @@ export const IssueForm: React.FC<IssueFormProps> = ({ issue, onSubmit, onCancel 
     if (!formData.assignee.name.trim()) {
       newErrors.assignee = 'Assignee name is required';
     }
+    if (isNaN(formData.comments) || formData.comments < 0) {
+      newErrors.comments = 'Comments must be a non-negative number';
+    }
+    if (isNaN(formData.attachments) || formData.attachments < 0) {
+      newErrors.attachments = 'Attachments must be a non-negative number';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -133,6 +139,36 @@ export const IssueForm: React.FC<IssueFormProps> = ({ issue, onSubmit, onCancel 
           } shadow-sm p-2`}
         />
         {errors.assignee && <p className="mt-1 text-sm text-red-600">{errors.assignee}</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Comments</label>
+          <input
+            type="number"
+            min="0"
+            value={formData.comments}
+            onChange={(e) => setFormData({ ...formData, comments: parseInt(e.target.value) || 0 })}
+            className={`mt-1 block w-full rounded-md border ${
+              errors.comments ? 'border-red-500' : 'border-gray-300'
+            } shadow-sm p-2`}
+          />
+          {errors.comments && <p className="mt-1 text-sm text-red-600">{errors.comments}</p>}
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Attachments</label>
+          <input
+            type="number"
+            min="0"
+            value={formData.attachments}
+            onChange={(e) => setFormData({ ...formData, attachments: parseInt(e.target.value) || 0 })}
+            className={`mt-1 block w-full rounded-md border ${
+              errors.attachments ? 'border-red-500' : 'border-gray-300'
+            } shadow-sm p-2`}
+          />
+          {errors.attachments && <p className="mt-1 text-sm text-red-600">{errors.attachments}</p>}
+        </div>
       </div>
 
       <div className="flex justify-end space-x-3 mt-6">

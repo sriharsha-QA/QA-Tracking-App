@@ -15,7 +15,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSubmit, onC
     status: project?.status || 'Active',
     progress: project?.progress || 0,
     startDate: project?.startDate || format(new Date(), 'yyyy-MM-dd'),
-    team: project?.team || []
+    team: project?.team || [],
+    appUrl: project?.appUrl || ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -32,9 +33,21 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSubmit, onC
     if (formData.progress < 0 || formData.progress > 100) {
       newErrors.progress = 'Progress must be between 0 and 100';
     }
+    if (formData.appUrl && !isValidUrl(formData.appUrl)) {
+      newErrors.appUrl = 'Please enter a valid URL (e.g., https://example.com)';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const isValidUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,6 +86,20 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSubmit, onC
       </div>
 
       <div>
+        <label className="block text-sm font-medium text-gray-700">App URL</label>
+        <input
+          type="url"
+          value={formData.appUrl}
+          onChange={(e) => setFormData({ ...formData, appUrl: e.target.value })}
+          placeholder="https://example.com"
+          className={`mt-1 block w-full rounded-md border ${
+            errors.appUrl ? 'border-red-500' : 'border-gray-300'
+          } shadow-sm p-2`}
+        />
+        {errors.appUrl && <p className="mt-1 text-sm text-red-600">{errors.appUrl}</p>}
+      </div>
+
+      <div>
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select
           value={formData.status}
@@ -92,7 +119,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onSubmit, onC
           min="0"
           max="100"
           value={formData.progress}
-          onChange={(e) => setFormData({ ...formData, progress: parseInt(e.target.value) })}
+          onChange={(e) => setFormData({ ...formData, progress: parseInt(e.target.value) || 0 })}
           className={`mt-1 block w-full rounded-md border ${
             errors.progress ? 'border-red-500' : 'border-gray-300'
           } shadow-sm p-2`}
