@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, ArrowUp, ArrowDown, MessageSquare, Paperclip, Edit2, Trash2, MoreVertical, Sparkles, FileText, ArrowRight } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUp, ArrowDown, MessageSquare, Paperclip, Edit2, Trash2, MoreVertical, Sparkles, FileText, ArrowRight, Link2, CheckSquare } from 'lucide-react';
 import { useIssueStore, Issue } from '../store/issueStore';
+import { useProjectStore } from '../store/projectStore';
+import { useQACheckStore } from '../store/qaCheckStore';
 import { Modal } from '../components/Modal';
 import { IssueForm } from '../components/forms/IssueForm';
 import { Tooltip } from '../components/Tooltip';
 
 const Issues: React.FC = () => {
   const { issues, addIssue, updateIssue, deleteIssue } = useIssueStore();
+  const { projects } = useProjectStore();
+  const { checks } = useQACheckStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
@@ -20,6 +25,11 @@ const Issues: React.FC = () => {
   const [aiType, setAiType] = useState<'bug' | 'task' | 'story' | 'doc' | 'release'>('bug');
   const [aiResult, setAiResult] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [showLinkQAModal, setShowLinkQAModal] = useState(false);
+  const [selectedQACheck, setSelectedQACheck] = useState<number | null>(null);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [releaseVersion, setReleaseVersion] = useState('');
+  const [releaseDate, setReleaseDate] = useState('');
 
   const handleCreateIssue = (issueData: Omit<Issue, 'id'>) => {
     addIssue(issueData);
@@ -279,7 +289,9 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
         },
         created: new Date().toISOString().split('T')[0],
         comments: 0,
-        attachments: 0
+        attachments: 0,
+        release: '',
+        linkedQAChecks: []
       };
       
       addIssue(newIssue);
@@ -290,13 +302,50 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
     setAiResult('');
   };
 
+  const handleLinkQACheck = () => {
+    if (selectedIssue && selectedQACheck !== null) {
+      const updatedIssue = {
+        ...selectedIssue,
+        linkedQAChecks: [...(selectedIssue.linkedQAChecks || []), selectedQACheck]
+      };
+      updateIssue(updatedIssue);
+      setShowLinkQAModal(false);
+      setSelectedQACheck(null);
+    }
+  };
+
+  const handleAddToRelease = () => {
+    if (selectedIssue && releaseVersion) {
+      const updatedIssue = {
+        ...selectedIssue,
+        release: releaseVersion
+      };
+      updateIssue(updatedIssue);
+      setShowReleaseModal(false);
+      setReleaseVersion('');
+      setReleaseDate('');
+    }
+  };
+
   const filteredIssues = issues.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          issue.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || issue.status.toLowerCase().replace(' ', '-') === statusFilter;
     const matchesPriority = priorityFilter === 'all' || issue.priority.toLowerCase() === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+    const matchesProject = projectFilter === 'all' || issue.project === projectFilter;
+    return matchesSearch && matchesStatus && matchesPriority && matchesProject;
   });
+
+  const getLinkedQAChecks = (issueId: number) => {
+    const issue = issues.find(i => i.id === issueId);
+    if (!issue || !issue.linkedQAChecks || issue.linkedQAChecks.length === 0) {
+      return [];
+    }
+    
+    return issue.linkedQAChecks.map(checkId => 
+      checks.find(check => check.id === checkId)
+    ).filter(Boolean);
+  };
 
   return (
     <div className="space-y-6">
@@ -366,7 +415,7 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               <select
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={statusFilter}
@@ -387,6 +436,16 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
+              <select
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+              >
+                <option value="all">All Projects</option>
+                {projects.map(project => (
+                  <option key={project.id} value={project.name}>{project.name}</option>
+                ))}
+              </select>
               <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                 <Filter size={20} className="text-gray-500" />
                 More Filters
@@ -405,6 +464,7 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Release</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -416,6 +476,14 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                         <div>
                           <div className="text-sm font-medium text-gray-900">{issue.title}</div>
                           <div className="text-sm text-gray-500">{issue.description}</div>
+                          {issue.linkedQAChecks && issue.linkedQAChecks.length > 0 && (
+                            <div className="mt-1 flex items-center gap-1">
+                              <CheckSquare size={14} className="text-blue-500" />
+                              <span className="text-xs text-blue-500">
+                                {issue.linkedQAChecks.length} QA check{issue.linkedQAChecks.length > 1 ? 's' : ''} linked
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -444,6 +512,15 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-gray-500">{issue.created}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {issue.release ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {issue.release}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">Not assigned</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
@@ -479,6 +556,28 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
                               >
                                 <Edit2 size={16} />
                                 Edit Issue
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setShowLinkQAModal(true);
+                                  setShowDropdown(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <Link2 size={16} />
+                                Link QA Check
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setShowReleaseModal(true);
+                                  setShowDropdown(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                              >
+                                <FileText size={16} />
+                                Add to Release
                               </button>
                               <button
                                 onClick={() => {
@@ -822,6 +921,148 @@ ${aiPrompt || 'This release introduces several new features and improvements to 
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* Link QA Check Modal */}
+      <Modal
+        isOpen={showLinkQAModal}
+        onClose={() => {
+          setShowLinkQAModal(false);
+          setSelectedQACheck(null);
+        }}
+        title="Link QA Check to Issue"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Link a QA check to issue: <strong>{selectedIssue?.title}</strong>
+          </p>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select QA Check
+            </label>
+            <select
+              value={selectedQACheck || ''}
+              onChange={(e) => setSelectedQACheck(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a QA check</option>
+              {checks
+                .filter(check => 
+                  !selectedIssue?.linkedQAChecks?.includes(check.id) && 
+                  check.project === selectedIssue?.project
+                )
+                .map(check => (
+                  <option key={check.id} value={check.id}>
+                    {check.name} ({check.status})
+                  </option>
+                ))
+              }
+            </select>
+          </div>
+          
+          {selectedIssue?.linkedQAChecks && selectedIssue.linkedQAChecks.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Currently Linked QA Checks:</h4>
+              <ul className="space-y-2">
+                {getLinkedQAChecks(selectedIssue.id).map(check => check && (
+                  <li key={check.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                    <span className="text-sm">{check.name}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      check.status === 'Passed' ? 'bg-green-100 text-green-800' :
+                      check.status === 'Failed' ? 'bg-red-100 text-red-800' :
+                      check.status === 'Blocked' ? 'bg-gray-100 text-gray-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {check.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              onClick={() => {
+                setShowLinkQAModal(false);
+                setSelectedQACheck(null);
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLinkQACheck}
+              disabled={selectedQACheck === null}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Link QA Check
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add to Release Modal */}
+      <Modal
+        isOpen={showReleaseModal}
+        onClose={() => {
+          setShowReleaseModal(false);
+          setReleaseVersion('');
+          setReleaseDate('');
+        }}
+        title="Add Issue to Release"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Add issue <strong>{selectedIssue?.title}</strong> to a release version
+          </p>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Release Version
+            </label>
+            <input
+              type="text"
+              value={releaseVersion}
+              onChange={(e) => setReleaseVersion(e.target.value)}
+              placeholder="e.g., v1.2.0"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Release Date (Optional)
+            </label>
+            <input
+              type="date"
+              value={releaseDate}
+              onChange={(e) => setReleaseDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              onClick={() => {
+                setShowReleaseModal(false);
+                setReleaseVersion('');
+                setReleaseDate('');
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddToRelease}
+              disabled={!releaseVersion}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add to Release
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

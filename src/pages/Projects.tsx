@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Edit2, Trash2, ExternalLink, Activity } from 'lucide-react';
+import { Plus, Search, MoreVertical, Edit2, Trash2, ExternalLink, Activity, Bug, CheckSquare, BarChart3 } from 'lucide-react';
 import { useProjectStore, Project } from '../store/projectStore';
+import { useIssueStore } from '../store/issueStore';
+import { useQACheckStore } from '../store/qaCheckStore';
 import { Modal } from '../components/Modal';
 import { ProjectForm } from '../components/forms/ProjectForm';
 import { Tooltip } from '../components/Tooltip';
 import { analyzeWebsite } from '../services/apiPerformance';
+import { Link } from 'react-router-dom';
 
 interface PerformanceMetrics {
   performance_score: number;
@@ -20,6 +23,8 @@ interface PerformanceMetrics {
 
 const Projects: React.FC = () => {
   const { projects, addProject, updateProject, deleteProject } = useProjectStore();
+  const { issues } = useIssueStore();
+  const { checks } = useQACheckStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +33,9 @@ const Projects: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<PerformanceMetrics[]>([]);
   const [currentAnalysisProject, setCurrentAnalysisProject] = useState<Project | null>(null);
+  const [showProjectDetails, setShowProjectDetails] = useState<number | null>(null);
+  const [showCreateIssue, setShowCreateIssue] = useState(false);
+  const [showCreateQACheck, setShowCreateQACheck] = useState(false);
 
   const handleCreateProject = (projectData: Omit<Project, 'id'>) => {
     addProject(projectData);
@@ -94,10 +102,51 @@ const Projects: React.FC = () => {
     return 'text-red-500';
   };
 
+  const getProjectHealthScore = (projectId: number) => {
+    // Calculate health score based on issues and QA checks
+    const projectIssues = issues.filter(issue => issue.project === projects.find(p => p.id === projectId)?.name);
+    const projectChecks = checks.filter(check => check.project === projects.find(p => p.id === projectId)?.name);
+    
+    const totalIssues = projectIssues.length;
+    const openIssues = projectIssues.filter(issue => issue.status === 'Open').length;
+    const failedChecks = projectChecks.filter(check => check.status === 'Failed').length;
+    
+    // Simple algorithm: start with 100, subtract for open issues and failed checks
+    let healthScore = 100;
+    
+    if (totalIssues > 0) {
+      // Deduct up to 50 points based on percentage of open issues
+      healthScore -= Math.min(50, Math.round((openIssues / totalIssues) * 50));
+    }
+    
+    if (projectChecks.length > 0) {
+      // Deduct up to 50 points based on percentage of failed checks
+      healthScore -= Math.min(50, Math.round((failedChecks / projectChecks.length) * 50));
+    }
+    
+    return healthScore;
+  };
+
+  const getHealthColor = (score: number) => {
+    if (score >= 80) return 'text-green-500';
+    if (score >= 60) return 'text-yellow-500';
+    return 'text-red-500';
+  };
+
   const filteredProjects = projects.filter(project =>
     project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     project.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getProjectIssues = (projectId: number) => {
+    const projectName = projects.find(p => p.id === projectId)?.name;
+    return issues.filter(issue => issue.project === projectName);
+  };
+
+  const getProjectQAChecks = (projectId: number) => {
+    const projectName = projects.find(p => p.id === projectId)?.name;
+    return checks.filter(check => check.project === projectName);
+  };
 
   return (
     <div className="space-y-6">
@@ -132,7 +181,12 @@ const Projects: React.FC = () => {
         {filteredProjects.map((project) => (
           <div key={project.id} className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-start">
-              <h3 className="text-lg font-semibold text-gray-800">{project.name}</h3>
+              <h3 
+                className="text-lg font-semibold text-gray-800 cursor-pointer hover:text-blue-600"
+                onClick={() => setShowProjectDetails(showProjectDetails === project.id ? null : project.id)}
+              >
+                {project.name}
+              </h3>
               <div className="relative">
                 <button
                   onClick={() => setShowDropdown(showDropdown === project.id ? null : project.id)}
@@ -167,6 +221,28 @@ const Projects: React.FC = () => {
                         Analyze Performance
                       </button>
                     )}
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setShowCreateIssue(true);
+                        setShowDropdown(null);
+                      }}
+                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Bug size={16} />
+                      Create Issue
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setShowCreateQACheck(true);
+                        setShowDropdown(null);
+                      }}
+                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <CheckSquare size={16} />
+                      Create QA Check
+                    </button>
                     <button
                       onClick={() => {
                         setSelectedProject(project);
@@ -220,10 +296,120 @@ const Projects: React.FC = () => {
                   />
                 ))}
               </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(project.status)}`}>
-                {project.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(project.status)}`}>
+                  {project.status}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium bg-gray-100 ${getHealthColor(getProjectHealthScore(project.id))}`}>
+                  Health: {getProjectHealthScore(project.id)}%
+                </span>
+              </div>
             </div>
+
+            {/* Project Details Expansion */}
+            {showProjectDetails === project.id && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium text-gray-700 flex items-center gap-2">
+                      <Bug size={16} />
+                      Issues ({getProjectIssues(project.id).length})
+                    </h4>
+                    {getProjectIssues(project.id).length > 0 ? (
+                      <div className="mt-2 space-y-2">
+                        {getProjectIssues(project.id).slice(0, 3).map(issue => (
+                          <Link 
+                            to="/issues" 
+                            key={issue.id}
+                            className="block p-2 bg-gray-50 rounded hover:bg-gray-100"
+                          >
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium">{issue.title}</span>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                issue.status === 'Open' ? 'bg-yellow-100 text-yellow-800' :
+                                issue.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                {issue.status}
+                              </span>
+                            </div>
+                          </Link>
+                        ))}
+                        {getProjectIssues(project.id).length > 3 && (
+                          <Link to="/issues" className="text-sm text-blue-500 hover:underline">
+                            View all {getProjectIssues(project.id).length} issues
+                          </Link>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 mt-2">No issues found for this project</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium text-gray-700 flex items-center gap-2">
+                      <CheckSquare size={16} />
+                      QA Checks ({getProjectQAChecks(project.id).length})
+                    </h4>
+                    {getProjectQAChecks(project.id).length > 0 ? (
+                      <div className="mt-2 space-y-2">
+                        {getProjectQAChecks(project.id).slice(0, 3).map(check => (
+                          <Link 
+                            to="/qa-checks" 
+                            key={check.id}
+                            className="block p-2 bg-gray-50 rounded hover:bg-gray-100"
+                          >
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium">{check.name}</span>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                check.status === 'Passed' ? 'bg-green-100 text-green-800' :
+                                check.status === 'Failed' ? 'bg-red-100 text-red-800' :
+                                check.status === 'Blocked' ? 'bg-gray-100 text-gray-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {check.status}
+                              </span>
+                            </div>
+                          </Link>
+                        ))}
+                        {getProjectQAChecks(project.id).length > 3 && (
+                          <Link to="/qa-checks" className="text-sm text-blue-500 hover:underline">
+                            View all {getProjectQAChecks(project.id).length} QA checks
+                          </Link>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 mt-2">No QA checks found for this project</p>
+                    )}
+                  </div>
+
+                  {project.appUrl && (
+                    <div>
+                      <h4 className="font-medium text-gray-700 flex items-center gap-2">
+                        <Activity size={16} />
+                        API Performance
+                      </h4>
+                      <button
+                        onClick={() => handleAnalyzeProject(project)}
+                        className="mt-2 text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100"
+                      >
+                        Analyze Performance
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Link 
+                      to="/reports" 
+                      className="text-sm text-blue-500 hover:underline flex items-center gap-1"
+                    >
+                      <BarChart3 size={14} />
+                      Generate Project Report
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -253,6 +439,13 @@ const Projects: React.FC = () => {
                     <span className={`text-lg font-bold ${getScoreColor(result.performance_score)}`}>
                       {Math.round(result.performance_score)}%
                     </span>
+                    <Link 
+                      to="/issues"
+                      className="text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100 flex items-center gap-1"
+                    >
+                      <Bug size={14} />
+                      Create Issue
+                    </Link>
                   </div>
                 </div>
                 
@@ -359,6 +552,50 @@ const Projects: React.FC = () => {
               Delete
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Create Issue Modal */}
+      <Modal
+        isOpen={showCreateIssue}
+        onClose={() => {
+          setShowCreateIssue(false);
+          setSelectedProject(null);
+        }}
+        title="Create Issue for Project"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Create a new issue for project: <strong>{selectedProject?.name}</strong>
+          </p>
+          <Link 
+            to="/issues" 
+            className="block w-full text-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Go to Issues Page
+          </Link>
+        </div>
+      </Modal>
+
+      {/* Create QA Check Modal */}
+      <Modal
+        isOpen={showCreateQACheck}
+        onClose={() => {
+          setShowCreateQACheck(false);
+          setSelectedProject(null);
+        }}
+        title="Create QA Check for Project"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Create a new QA check for project: <strong>{selectedProject?.name}</strong>
+          </p>
+          <Link 
+            to="/qa-checks" 
+            className="block w-full text-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Go to QA Checks Page
+          </Link>
         </div>
       </Modal>
     </div>

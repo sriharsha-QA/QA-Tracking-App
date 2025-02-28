@@ -1,11 +1,13 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface Issue {
+  linkedQAChecks: boolean;
+  release: any;
   id: number;
   title: string;
   description: string;
-  status: 'Open' | 'In Progress' | 'Closed';
-  priority: 'High' | 'Medium' | 'Low';
+  status: "Open" | "In Progress" | "Closed";
+  priority: "High" | "Medium" | "Low";
   project: string;
   assignee: {
     name: string;
@@ -18,7 +20,7 @@ export interface Issue {
 
 interface IssueState {
   issues: Issue[];
-  addIssue: (issue: Omit<Issue, 'id'>) => void;
+  addIssue: (issue: Omit<Issue, "id">) => void;
   updateIssue: (issue: Issue) => void;
   deleteIssue: (id: number) => void;
   getIssue: (id: number) => Issue | undefined;
@@ -31,17 +33,17 @@ export const useIssueStore = create<IssueState>((set, get) => ({
   ],
   addIssue: (issue) => {
     set((state) => ({
-      issues: [...state.issues, { ...issue, id: state.issues.length + 1 }]
+      issues: [...state.issues, { ...issue, id: state.issues.length + 1 }],
     }));
   },
   updateIssue: (issue) => {
     set((state) => ({
-      issues: state.issues.map((i) => (i.id === issue.id ? issue : i))
+      issues: state.issues.map((i) => (i.id === issue.id ? issue : i)),
     }));
   },
   deleteIssue: (id) => {
     set((state) => ({
-      issues: state.issues.filter((i) => i.id !== id)
+      issues: state.issues.filter((i) => i.id !== id),
     }));
   },
   getIssue: (id) => {
@@ -50,11 +52,14 @@ export const useIssueStore = create<IssueState>((set, get) => ({
   filterIssues: (status, priority, search) => {
     const issues = get().issues;
     return issues.filter((issue) => {
-      const matchesStatus = status === 'all' || issue.status.toLowerCase() === status;
-      const matchesPriority = priority === 'all' || issue.priority.toLowerCase() === priority;
-      const matchesSearch = issue.title.toLowerCase().includes(search.toLowerCase()) ||
-                          issue.description.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus =
+        status === "all" || issue.status.toLowerCase() === status;
+      const matchesPriority =
+        priority === "all" || issue.priority.toLowerCase() === priority;
+      const matchesSearch =
+        issue.title.toLowerCase().includes(search.toLowerCase()) ||
+        issue.description.toLowerCase().includes(search.toLowerCase());
       return matchesStatus && matchesPriority && matchesSearch;
     });
-  }
+  },
 }));
