@@ -14,22 +14,4 @@ export default defineConfig({
       },
     },
   ],
-  build: {
-    target: "esnext",
-    outDir: "dist",
-    assetsDir: "assets",
-    rollupOptions: {
-      output: {
-        entryFileNames: "assets/[name]-[hash].js",
-        chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: "assets/[name]-[hash].[ext]",
-      },
-    },
-  },
-  resolve: {
-    extensions: [".js", ".ts", ".tsx", ".json"],
-  },
-  optimizeDeps: {
-    exclude: ["lucide-react"],
-  },
 });
