@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && echo '/assets/*\\n  Content-Type: application/javascript' > dist/_headers",
+    "build": "vite build && echo '/*\\n  Content-Type: text/html\\n/assets/*.js\\n  Content-Type: application/javascript\\n/assets/*.css\\n  Content-Type: text/css' > dist/_headers",
     "lint": "eslint .",
     "preview": "vite preview"
   },
