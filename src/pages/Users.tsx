@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Search, MoreVertical, Mail, Phone, MapPin, Edit2, Trash2 } from 'lucide-react';
-import { useUserStore, User } from '../store/userStore';
+import { Plus, Search, MoreVertical, Mail, Phone, MapPin, Edit2, Trash2, Shield, Clock, Activity, AlertTriangle } from 'lucide-react';
+import { useUserStore, User, UserActivity } from '../store/userStore';
 import { Modal } from '../components/Modal';
 import { UserForm } from '../components/forms/UserForm';
 import { Tooltip } from '../components/Tooltip';
 
 const Users: React.FC = () => {
-  const { users, addUser, updateUser, deleteUser } = useUserStore();
+  const { users, addUser, updateUser, deleteUser, addUserActivity } = useUserStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -14,6 +14,10 @@ const Users: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [newRole, setNewRole] = useState<User['role']>('Developer');
 
   const handleCreateUser = (userData: Omit<User, 'id'>) => {
     addUser(userData);
@@ -32,6 +36,39 @@ const Users: React.FC = () => {
     deleteUser(id);
     setShowDeleteConfirm(false);
     setSelectedUser(null);
+  };
+
+  const handleChangeRole = () => {
+    if (selectedUser) {
+      updateUser({ ...selectedUser, role: newRole });
+      
+      // Add activity
+      addUserActivity(selectedUser.id, {
+        action: 'Role Changed',
+        target: `from ${selectedUser.role} to ${newRole}`,
+        timestamp: new Date().toISOString().replace('T', ' ').split('.')[0]
+      });
+      
+      setShowRoleModal(false);
+      setSelectedUser(null);
+    }
+  };
+
+  const handleToggle2FA = () => {
+    if (selectedUser) {
+      const newStatus = !selectedUser.twoFactorEnabled;
+      updateUser({ ...selectedUser, twoFactorEnabled: newStatus });
+      
+      // Add activity
+      addUserActivity(selectedUser.id, {
+        action: newStatus ? '2FA Enabled' : '2FA Disabled',
+        target: 'Security Settings',
+        timestamp: new Date().toISOString().replace('T', ' ').split('.')[0]
+      });
+      
+      setShowSecurityModal(false);
+      setSelectedUser(null);
+    }
   };
 
   const getStatusColor = (status: User['status']) => {
@@ -67,6 +104,23 @@ const Users: React.FC = () => {
     const matchesStatus = statusFilter === 'all' || user.status.toLowerCase() === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
+
+  const formatActivityTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 60) {
+      return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    } else {
+      return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -129,6 +183,7 @@ const Users: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Security</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -170,6 +225,14 @@ const Users: React.FC = () => {
                       {user.location}
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center">
+                      <Shield size={16} className={user.twoFactorEnabled ? "text-green-500" : "text-gray-400"} />
+                      <span className="ml-2 text-sm text-gray-500">
+                        {user.twoFactorEnabled ? '2FA Enabled' : '2FA Disabled'}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="relative">
                       <button
@@ -192,6 +255,40 @@ const Users: React.FC = () => {
                           >
                             <Edit2 size={16} />
                             Edit User
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowActivityModal(true);
+                              setShowDropdown(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Activity size={16} />
+                            View Activity
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setNewRole(user.role);
+                              setShowRoleModal(true);
+                              setShowDropdown(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Shield size={ 16} />
+                            Manage Role
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowSecurityModal(true);
+                              setShowDropdown(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Shield size={16} />
+                            Security Settings
                           </button>
                           <button
                             onClick={() => {
@@ -267,6 +364,234 @@ const Users: React.FC = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* User Activity Modal */}
+      <Modal
+        isOpen={showActivityModal}
+        onClose={() => {
+          setShowActivityModal(false);
+          setSelectedUser(null);
+        }}
+        title="User Activity History"
+      >
+        {selectedUser && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <img
+                src={selectedUser.avatar}
+                alt={selectedUser.name}
+                className="w-12 h-12 rounded-full"
+              />
+              <div>
+                <h3 className="font-medium text-gray-900">{selectedUser.name}</h3>
+                <p className="text-sm text-gray-500">{selectedUser.email}</p>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Recent Activity</h4>
+              
+              {selectedUser.activities && selectedUser.activities.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedUser.activities.map((activity, index) => (
+                    <div key={activity.id} className="flex items-start gap-3">
+                      <div className="bg-blue-100 p-2 rounded-full">
+                        <Activity size={16} className="text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{activity.action}</p>
+                        <p className="text-xs text-gray-500">{activity.target}</p>
+                      </div>
+                      <span className="text-xs text-gray-400">{formatActivityTime(activity.timestamp)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No activity recorded for this user.</p>
+              )}
+            </div>
+            
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => {
+                  setShowActivityModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Role Management Modal */}
+      <Modal
+        isOpen={showRoleModal}
+        onClose={() => {
+          setShowRoleModal(false);
+          setSelectedUser(null);
+        }}
+        title="Manage User Role"
+      >
+        {selectedUser && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <img
+                src={selectedUser.avatar}
+                alt={selectedUser.name}
+                className="w-12 h-12 rounded-full"
+              />
+              <div>
+                <h3 className="font-medium text-gray-900">{selectedUser.name}</h3>
+                <p className="text-sm text-gray-500">{selectedUser.email}</p>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Current Role</label>
+              <div className="px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(selectedUser.role)}`}>
+                  {selectedUser.role}
+                </span>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">New Role</label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as User['role'])}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Admin">Admin</option>
+                <option value="QA Engineer">QA Engineer</option>
+                <option value="Developer">Developer</option>
+                <option value="Project Manager">Project Manager</option>
+              </select>
+            </div>
+            
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-800">Role Change Warning</h4>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Changing a user's role will modify their permissions and access levels within the system.
+                    Make sure the user is aware of these changes.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                onClick={() => {
+                  setShowRoleModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChangeRole}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                disabled={selectedUser.role === newRole}
+              >
+                Change Role
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Security Settings Modal */}
+      <Modal
+        isOpen={showSecurityModal}
+        onClose={() => {
+          setShowSecurityModal(false);
+          setSelectedUser(null);
+        }}
+        title="Security Settings"
+      >
+        {selectedUser && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <img
+                src={selectedUser.avatar}
+                alt={selectedUser.name}
+                className="w-12 h-12 rounded-full"
+              />
+              <div>
+                <h3 className="font-medium text-gray-900">{selectedUser.name}</h3>
+                <p className="text-sm text-gray-500">{selectedUser.email}</p>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-4">Two-Factor Authentication (2FA)</h4>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-800">
+                    {selectedUser.twoFactorEnabled ? '2FA is currently enabled' : '2FA is currently disabled'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {selectedUser.twoFactorEnabled 
+                      ? 'User must provide a verification code in addition to password when logging in.' 
+                      : 'User only needs a password to log in.'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggle2FA}
+                  className={`px-4 py-2 rounded-md ${
+                    selectedUser.twoFactorEnabled
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
+                >
+                  {selectedUser.twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                </button>
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-4">Password Management</h4>
+              
+              <button
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                <Mail size={16} />
+                Send Password Reset Email
+              </button>
+            </div>
+            
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Last Login</h4>
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  {selectedUser.lastActive || 'No login recorded'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => {
+                  setShowSecurityModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
